@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Build the Bicycle</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .part-img {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      cursor: grab;
+      transition: transform 0.2s ease;
+    }
+
+    .part-img:hover {
+      transform: scale(1.05);
+    }
+
+    .drop-zone {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      border: 2px dashed #3b82f6;
+      border-radius: 9999px;
+      background-color: rgba(147, 197, 253, 0.2);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: background 0.2s;
+    }
+
+    .drop-zone.hovered {
+      background-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .dropped {
+      width: 70px;
+      height: 70px;
+      pointer-events: none;
+    }
+
+    .bike-container {
+      position: relative;
+      width: 500px;
+      height: 350px;
+      background: url('https://upload.wikimedia.org/wikipedia/commons/0/0b/Bicycle_diagram-en.svg') no-repeat center;
+      background-size: contain;
+      margin: auto;
+    }
+  </style>
+</head>
+<body class="bg-blue-50 min-h-screen flex flex-col items-center justify-center p-4">
+
+  <h1 class="text-3xl font-bold text-blue-700 mb-6">🚴 Build Your Bicycle</h1>
+
+  <!-- Parts Section -->
+  <div class="flex flex-wrap justify-center gap-4 mb-6">
+    <img src="wheel.png" id="wheelA" class="part-img" draggable="true" alt="Rear Wheel">
+    <img src="wheel.png" id="wheelB" class="part-img" draggable="true" alt="Front Wheel">
+    <img src="seat.png" id="seat" class="part-img" draggable="true" alt="Seat">
+    <img src="handlebar.png" id="handlebars" class="part-img" draggable="true" alt="Handlebars">
+    <img src="pedals.png" id="pedals" class="part-img" draggable="true" alt="Pedals">
+    <img src="chain.png" id="chain" class="part-img" draggable="true" alt="Chain">
+  </div>
+
+  <!-- Bike Frame Area -->
+  <div class="bike-container">
+    <!-- Drop Zones -->
+    <div class="drop-zone" data-part="wheelA" style="top: 230px; left: 70px;"></div>
+    <div class="drop-zone" data-part="wheelB" style="top: 230px; left: 330px;"></div>
+    <div class="drop-zone" data-part="seat"   style="top: 120px; left: 170px;"></div>
+    <div class="drop-zone" data-part="handlebars" style="top: 90px; left: 300px;"></div>
+    <div class="drop-zone" data-part="pedals" style="top: 200px; left: 210px;"></div>
+    <div class="drop-zone" data-part="chain"  style="top: 210px; left: 160px;"></div>
+
+    <!-- SVG to draw lines -->
+    <svg id="frame-lines" class="absolute top-0 left-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- Success Message -->
+  <div id="success" class="hidden mt-6 text-green-600 font-bold text-xl">🎉 You built the bike!</div>
+
+  <script>
+    const parts = ["wheelA", "wheelB", "seat", "handlebars", "pedals", "chain"];
+    const added = new Set();
+
+    // Define connections between parts
+    const connections = [
+      ['wheelA', 'chain'],
+      ['chain', 'pedals'],
+      ['seat', 'handlebars'],
+      ['seat', 'pedals'],
+      ['wheelB', 'handlebars']
+    ];
+
+    const frameSvg = document.getElementById('frame-lines');
+
+    // Get center of a drop zone
+    function getCenter(el) {
+      const rect = el.getBoundingClientRect();
+      const parentRect = frameSvg.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2 - parentRect.left,
+        y: rect.top + rect.height / 2 - parentRect.top
+      };
+    }
+
+    // Redraw lines between connected parts
+    function drawFrameLines() {
+      frameSvg.innerHTML = '';
+      connections.forEach(([from, to]) => {
+        if (added.has(from) && added.has(to)) {
+          const fromEl = document.querySelector(`.drop-zone[data-part="${from}"]`);
+          const toEl = document.querySelector(`.drop-zone[data-part="${to}"]`);
+          const p1 = getCenter(fromEl);
+          const p2 = getCenter(toEl);
+
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          line.setAttribute('x1', p1.x);
+          line.setAttribute('y1', p1.y);
+          line.setAttribute('x2', p2.x);
+          line.setAttribute('y2', p2.y);
+          line.setAttribute('stroke', '#2563eb'); // Tailwind blue-600
+          line.setAttribute('stroke-width', '4');
+          line.setAttribute('stroke-linecap', 'round');
+          frameSvg.appendChild(line);
+        }
+      });
+    }
+
+    // Drag & Drop Logic
+    document.querySelectorAll('.part-img').forEach(part => {
+      part.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', part.id);
+      });
+    });
+
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('hovered');
+      });
+
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('hovered');
+      });
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('hovered');
+
+        const partId = e.dataTransfer.getData('text/plain');
+        const expected = zone.dataset.part;
+
+        if (partId === expected && !added.has(partId)) {
+          const img = document.getElementById(partId).cloneNode(true);
+          img.classList.remove('part-img');
+          img.classList.add('dropped');
+          img.removeAttribute('draggable');
+
+          zone.innerHTML = '';
+          zone.appendChild(img);
+          added.add(partId);
+
+          drawFrameLines();
+
+          if (added.size === parts.length) {
+            document.getElementById('success').classList.remove('hidden');
+          }
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>
+
